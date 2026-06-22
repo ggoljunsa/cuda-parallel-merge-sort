@@ -1,0 +1,15 @@
+# Build output
+bin/cuda_merge_sort
+*.o
+
+# Large generated CSV arrays (keep small sample artifacts only; see README)
+proof/input_*.csv
+proof/sorted_*.csv
+data/*.csv
+
+# Keep directory placeholders and the benchmark/log artifacts
+!**/.gitkeep
+
+# OS / editor cruft
+.DS_Store
+*.swp

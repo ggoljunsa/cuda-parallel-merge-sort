@@ -1,0 +1,44 @@
+INSTALL — CUDA Parallel Merge Sort capstone
+===========================================
+
+Prerequisites
+-------------
+- An NVIDIA GPU with the CUDA Toolkit (>= 11.0). The Coursera course lab
+  already provides this at /usr/local/cuda.
+- A C++14 host compiler (g++), which the CUDA Toolkit uses via nvcc.
+
+There are no third-party library dependencies: the program uses only the CUDA
+runtime and the C++ standard library.
+
+Build (Linux / Coursera lab)
+----------------------------
+From the repository root:
+
+    make
+
+If nvcc is not on the default path, point the Makefile at it:
+
+    make NVCC=/usr/local/cuda/bin/nvcc CUDA_PATH=/usr/local/cuda
+
+Run everything (build, sort, benchmark, log)
+--------------------------------------------
+    ./run.sh
+
+This produces, under proof/:
+    run_log.txt          full console log
+    benchmark.csv        GPU vs CPU timing across input sizes
+    sample_input.csv     small readable input array
+    sample_sorted.csv    its sorted output
+    input_<N>.csv        the large input array (git-ignored)
+    sorted_<N>.csv       the large sorted output (git-ignored)
+
+Manual usage
+------------
+    ./bin/cuda_merge_sort --size 1048576 --output sorted.csv
+    ./bin/cuda_merge_sort --input my_array.csv --output sorted.csv
+    ./bin/cuda_merge_sort --benchmark --bench-out proof/benchmark.csv
+    ./bin/cuda_merge_sort --help
+
+Cleaning
+--------
+    make clean
