@@ -1,0 +1,75 @@
+name: GPU Simulator
+
+# Optional, non-required check. The hosted runners have no GPU, so this builds
+# the sort with CUDA and runs it on a simulated NVIDIA H100
+# (https://github.com/pantheongpu/pantheonsim). A simulator has no timing
+# model and cannot reproduce hardware-specific behavior, so it complements
+# real-GPU testing and does not replace it.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "src/**"
+      - "Makefile"
+      - ".github/workflows/gpu-sim.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sort:
+    name: Merge sort (CUDA 13.0 and simulated H100)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up the simulated GPU and CUDA toolkit
+        uses: pantheongpu/setup-pantheonsim@a1b9d4237411f9b2b0e0bb895b4d83377f336a7b # v0.1.9
+        with:
+          gpu: nvidia/h100
+          cuda-toolkit: "13.0"
+
+      # The simulator runs PTX and needs a shared CUDA runtime, so the build
+      # uses compute_90 PTX and -cudart shared.
+      - name: Build
+        run: |
+          make NVCC=/usr/local/cuda-13.0/bin/nvcc CUDA_PATH=/usr/local/cuda-13.0 \
+               NVCCFLAGS="-std=c++14 -O3 -arch=compute_90 -cudart shared"
+
+      # The program exits nonzero when the GPU result differs from std::sort.
+      # Each run must also show the virtual GPU and its own PASSED line.
+      - name: Sort and verify on the simulated GPU
+        run: |
+          set -o pipefail
+          for n in 1000 4099 65536; do
+            vgpu run ./bin/cuda_merge_sort --size "$n" --save-input in.csv \
+              --output out.csv 2>&1 | tee "run-$n.log"
+            grep -q 'Generated '"$n"' random values' "run-$n.log"
+            grep -q 'virtual GPU platform initialized' "run-$n.log"
+            grep -q 'Verification: PASSED' "run-$n.log"
+            ! grep -q 'FAILED\|CUDA error' "run-$n.log"
+          done
+
+      # Round trip through the CSV input path, then check the output order
+      # independently of the program.
+      - name: Sort a CSV file
+        run: |
+          set -o pipefail
+          vgpu run ./bin/cuda_merge_sort --input in.csv --output sorted.csv \
+            2>&1 | tee csv.log
+          grep -q 'Loaded 65536 values' csv.log
+          grep -q 'virtual GPU platform initialized' csv.log
+          grep -q 'Verification: PASSED' csv.log
+          tr ',' '\n' < sorted.csv | grep -v '^$' > sorted.txt
+          test "$(wc -l < sorted.txt)" -eq 65536
+          sort -n -c sorted.txt
